@@ -114,7 +114,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1rem 0; }
 .configurator { position: relative; height: 100%; background: radial-gradient(ellipse at 50% 40%, #fffaf2 0%, #efe6da 100%); }
 .configurator-canvas { position: absolute; inset: 0; cursor: grab; }
 .configurator-canvas:active { cursor: grabbing; }
-.configurator-hint { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); background: rgba(255, 255, 255, .75); padding: .35rem .9rem; border-radius: 999px; font-size: .8rem; color: var(--muted); pointer-events: none; }
+.configurator-hint { position: absolute; bottom: 18px; right: 18px; background: rgba(255, 255, 255, .75); padding: .35rem .9rem; border-radius: 999px; font-size: .8rem; color: var(--muted); pointer-events: none; }
 .reset-view { position: absolute; top: 20px; right: 20px; background: rgba(255, 255, 255, .7); }
 .product-panel { padding: 78px 28px 32px; background: var(--surface); border-left: 1px solid var(--line); }
 .option-group { border: 0; padding: 0; margin: 1rem 0 0; }
