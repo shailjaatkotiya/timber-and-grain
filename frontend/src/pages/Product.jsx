@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import Configurator, { ARIcon } from '../components/Configurator';
@@ -35,6 +35,7 @@ export default function Product() {
   const [qty, setQty] = useState(1);
   const [params, setParams] = useSearchParams();
   const [arOpen, setArOpen] = useState(false);
+  const [arCamera, setArCamera] = useState(false);
   const [modelReady, setModelReady] = useState(false);
   const viewerRef = useRef(null);
 
@@ -53,14 +54,20 @@ export default function Product() {
 
   // ?ar=1 → open the AR dialog as soon as the model is ready
   useEffect(() => {
-    if (modelReady && params.get('ar') === '1') {
+    const ar = params.get('ar');
+    if (modelReady && (ar === '1' || ar === 'camera')) {
+      setArCamera(ar === 'camera'); // Android fallback from Scene Viewer lands here
       setArOpen(true);
       const next = new URLSearchParams(params); next.delete('ar'); setParams(next, { replace: true });
     }
   }, [modelReady]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setModelReady(false); }, [slug]);
 
-  const getModelBlob = useCallback(() => viewerRef.current.exportGLB(), []);
+  const viewerApi = useMemo(() => ({
+    snapshot: () => viewerRef.current.snapshot(),
+    exportGLB: () => viewerRef.current.exportGLB(),
+    exportUSDZ: () => viewerRef.current.exportUSDZ(),
+  }), []);
 
   const optionIndex = useMemo(() => (product?.options ? indexOptions(product.options) : null), [product]);
 
@@ -90,7 +97,7 @@ export default function Product() {
     <div className="product-page">
       <div className="product-stage">
         <Configurator ref={viewerRef} product={product} config={selection} optionIndex={optionIndex}
-          onViewAR={() => setArOpen(true)} onReady={() => setModelReady(true)} />
+          onViewAR={() => { setArCamera(false); setArOpen(true); }} onReady={() => setModelReady(true)} />
       </div>
       <aside className="product-panel">
         <Link to={`/shop?category=${product.category}`} className="muted small">← {product.category === 'table' ? 'Tables' : 'Chairs'}</Link>
@@ -127,7 +134,7 @@ export default function Product() {
             {adding ? 'Adding…' : `Add to cart · ${inr(price * qty)}`}
           </button>
         </div>
-        <button type="button" className="btn-ghost block ar-btn" onClick={() => setArOpen(true)} disabled={!modelReady}>
+        <button type="button" className="btn-ghost block ar-btn" onClick={() => { setArCamera(false); setArOpen(true); }} disabled={!modelReady}>
           <ARIcon /> View in AR, in your room
         </button>
         <button type="button" className="btn-link small"
@@ -144,8 +151,9 @@ export default function Product() {
           <p>{product.description}</p>
         </div>
         {arOpen && (
-          <ARViewer product={product} getModelBlob={getModelBlob} shareUrl={shareUrl}
-            configLabel={configLabel} onClose={() => setArOpen(false)} />
+          <ARViewer product={product} viewerApi={viewerApi} shareUrl={shareUrl} configLabel={configLabel}
+            config={selection} optionIndex={optionIndex} startInCamera={arCamera}
+            onClose={() => { setArOpen(false); setArCamera(false); }} />
         )}
         <p className="help-line">
           Questions about this piece? Call <a href={telHref}>{STORE.phone}</a> or{' '}

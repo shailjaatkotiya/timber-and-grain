@@ -3,7 +3,7 @@
 A furniture store where customers pick a table or chair, configure its wood and finish
 (and the desk's frame colour) on the real GLB model in 3D, and check out with the configuration attached.
 
-**Stack:** FastAPI · PostgreSQL · SQLAlchemy 2 · React 18 · Redux Toolkit · Three.js (GLB models) · model-viewer (AR) · Vite
+**Stack:** FastAPI · PostgreSQL · SQLAlchemy 2 · React 18 · Redux Toolkit · Three.js (GLB models, AR Quick Look / Scene Viewer export) · Vite
 
 ## What's included
 
@@ -99,18 +99,20 @@ Images are written to `frontend/public/images/products/<slug>.webp` (the path in
 3. Run `npm run render:images -- <slug>`.
 
 ### View in your room (AR)
-The product page has a **View in your room** button (on the 3D view and under *Add to cart*).
-* The **configured** model (the chosen wood, finish and frame, at real size in metres) is exported in the browser with
-  `GLTFExporter` and handed to Google's [`<model-viewer>`](https://modelviewer.dev), which is loaded only when AR is opened.
-* **iPhone / iPad (Safari):** AR Quick Look. model-viewer converts the model to USDZ on the fly.
-* **Android (Chrome, ARCore):** WebXR in the page, with floor detection. Without WebXR it falls back to Google's Scene Viewer,
-  which shows the default finish because it needs a public URL.
-* **Desktop:** a QR code opens `/product/<slug>?wood=…&finish=…&frame=…&ar=1` on the phone, with the same configuration and the AR dialog open.
-* `ar-scale="fixed"` keeps the piece at true size; `ar-placement="floor"` stands it on the floor.
+The product page has a **View in your room** button. AR always shows the **configured** piece at true size:
+the configured model is baked (scale, yaw and floor offset built into the geometry) and exported in the browser,
+then uploaded to `POST /api/ar/models` and served from a short-lived HTTPS URL (`/api/ar/models/<id>.usdz|glb`,
+expiring after 2 h). Native AR apps can't open in-memory `blob:` URLs.
 
-**Testing AR needs a phone that can reach the site.** `localhost` won't work from a phone. Run `npm run dev -- --host` and open the
-network address, or use the deployed site. Android WebXR also requires **HTTPS**, so test on a deployed URL
-(e.g. Vercel) or through a tunnel such as `cloudflared tunnel --url http://localhost:5173`.
+| Device | What opens | Needs |
+|---|---|---|
+| iPhone / iPad, **any browser** | Apple **AR Quick Look** (floor tracking, real size) via a `rel="ar"` link to the USDZ | nothing. In Chrome/Firefox the file may open in Apple's viewer: tap **AR** at the top. Safari is smoothest |
+| Android, **any browser** (Chrome, Firefox, Samsung Internet, Edge) | Google **Scene Viewer** via an intent link to the GLB | Google Play Services for AR (most phones). Falls back to the live camera view |
+| **Any browser** (fallback) | **Live camera view**: rear camera plus the 3D model on top (rotate, pinch, move, save photo) | camera permission. The app asks explicitly and shows per-browser steps if it's blocked |
+| Desktop | QR code → the same product + configuration on the phone | – |
+
+Quick Look and Scene Viewer ask for the camera themselves (a system prompt, once). The live camera view uses the browser's
+permission prompt and **requires HTTPS**, so test on the deployed site, not `localhost`.
 
 ### Configuration → cart → order
 * The client sends `{product_id, quantity, configuration, preview_image}`. It **never sends a price**.

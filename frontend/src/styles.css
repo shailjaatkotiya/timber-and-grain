@@ -276,3 +276,25 @@ main { min-height: calc(100vh - 200px); }
   .ar-body.ar-qr { grid-template-columns: 1fr; justify-items: center; }
   .ar-body { height: 62vh; }
 }
+
+/* AR v2: Quick Look / Scene Viewer / live camera */
+.ar-options { display: flex; flex-direction: column; gap: 10px; }
+.ql-link { position: relative; display: block; border-radius: 12px; overflow: hidden; background: #efe6da; }
+.ql-link img { width: 100%; max-height: 52vh; object-fit: contain; }
+.ql-link::after { content: 'Tap to place in your room'; position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); background: var(--ink); color: var(--accent-ink); font-weight: 600; font-size: .9rem; padding: .55rem 1.1rem; border-radius: 999px; white-space: nowrap; box-shadow: var(--shadow); }
+.ar-preview { width: 100%; max-height: 40vh; object-fit: contain; border-radius: 12px; background: #efe6da; }
+.ar-caption { margin: 0; font-size: .88rem; color: #4d433b; }
+.camera-dialog { padding: 0; overflow: hidden; }
+.camera-dialog > .btn-link { display: block; margin: 0 auto 12px; }
+.camera-ask { padding: 20px 20px 8px; text-align: center; }
+.camera-ask h4 { margin: 0 0 .4rem; font-size: 1.05rem; }
+.camera-ask ol { text-align: left; margin: .6rem 0 1rem; padding-left: 1.2rem; }
+.camera-ask .btn { margin: .6rem 0; }
+.camera-ar { position: fixed; inset: 0; z-index: 60; background: #000; }
+.camera-feed { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.camera-model { position: absolute; inset: 0; touch-action: none; }
+.camera-bar { position: absolute; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; gap: .6rem; padding: 12px 14px; color: #fff; background: linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,0)); font-weight: 600; }
+.camera-bar.top { top: 0; padding-top: max(12px, env(safe-area-inset-top)); }
+.camera-bar.bottom { bottom: 0; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.6)); padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+.btn-ghost.light { color: #fff; border-color: rgba(255,255,255,.8); }
+.btn.small { padding: .45rem .95rem; font-size: .85rem; }

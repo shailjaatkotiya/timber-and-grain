@@ -154,14 +154,48 @@ export class FurnitureViewer {
   }
 
   /**
+   * A flat copy of the configured model with every transform (real-world scale, yaw, floor offset,
+   * the GLB's own node matrices) baked into float geometry. Exporters then can't drop or misread
+   * a parent transform (USDZExporter ignores the root's), so AR shows the piece at true size on the floor.
+   */
+  bakedScene() {
+    if (!this.model) throw new Error('Model not loaded yet');
+    const scene = new THREE.Scene();
+    this.model.updateWorldMatrix(true, true);
+    const toModelSpace = new THREE.Matrix4().copy(this.model.parent.matrixWorld).invert();
+    this.model.traverse((o) => {
+      if (!o.isMesh) return;
+      const g = toFloatGeometry(o.geometry);
+      g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(toModelSpace, o.matrixWorld));
+      const m = new THREE.Mesh(g, o.material);
+      m.name = o.name;
+      scene.add(m);
+    });
+    return scene;
+  }
+
+  /**
    * Export the configured model (current wood/finish/frame, real-world size in metres,
    * standing on y = 0) as a GLB blob, e.g. for AR. Only the furniture is exported, not the floor.
    */
   async exportGLB() {
-    if (!this.model) throw new Error('Model not loaded yet');
     const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js'); // only needed for AR
-    const glb = await new GLTFExporter().parseAsync(this.model, { binary: true, onlyVisible: true, maxTextureSize: 1024 });
+    const glb = await new GLTFExporter().parseAsync(this.bakedScene(), { binary: true, onlyVisible: true, maxTextureSize: 1024 });
     return new Blob([glb], { type: 'model/gltf-binary' });
+  }
+
+  /**
+   * Export the configured model as USDZ for iOS AR Quick Look (metres, anchored to the floor).
+   * Exported up front, not on tap, so Safari still treats the AR tap as a direct user gesture.
+   */
+  async exportUSDZ() {
+    const { USDZExporter } = await import('three/examples/jsm/exporters/USDZExporter.js');
+    const bytes = await new USDZExporter().parseAsync(this.bakedScene(), {
+      quickLookCompatible: true,
+      maxTextureSize: 1024,
+      ar: { anchoring: { type: 'plane' }, planeAnchoring: { alignment: 'horizontal' } },
+    });
+    return new Blob([bytes], { type: 'model/vnd.usdz+zip' });
   }
 
   /** Small JPEG of the current view, saved with the cart item so the configured look travels with it. */
@@ -196,6 +230,22 @@ export class FurnitureViewer {
     this.renderer.forceContextLoss?.();
     this.renderer.domElement.remove();
   }
+}
+
+/** Copy a geometry with plain Float32 attributes (meshopt/quantised GLBs use normalised int16), safe to transform. */
+function toFloatGeometry(src) {
+  const g = new THREE.BufferGeometry();
+  if (src.index) g.setIndex(Array.from(src.index.array));
+  for (const [name, a] of Object.entries(src.attributes)) {
+    const out = new Float32Array(a.count * a.itemSize);
+    const get = [a.getX, a.getY, a.getZ, a.getW];
+    for (let i = 0; i < a.count; i++) {
+      for (let c = 0; c < a.itemSize; c++) out[i * a.itemSize + c] = get[c].call(a, i); // getX etc. de-normalise
+    }
+    g.setAttribute(name, new THREE.BufferAttribute(out, a.itemSize));
+  }
+  for (const grp of src.groups) g.addGroup(grp.start, grp.count, grp.materialIndex);
+  return g;
 }
 
 /**

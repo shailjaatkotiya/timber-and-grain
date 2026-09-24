@@ -31,6 +31,7 @@ const Configurator = forwardRef(function Configurator({ product, config, optionI
   useImperativeHandle(ref, () => ({
     snapshot: () => (viewer.current?.model ? viewer.current.snapshot() : null),
     exportGLB: () => viewer.current.exportGLB(),
+    exportUSDZ: () => viewer.current.exportUSDZ(),
   }));
 
   return (

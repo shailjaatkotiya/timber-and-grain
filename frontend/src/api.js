@@ -32,3 +32,16 @@ export async function api(path, { method = 'GET', body } = {}) {
 
 export const inr = (v) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(v));
+
+/** Upload a configured AR model (GLB or USDZ); returns an absolute HTTPS URL native AR apps can open. */
+export async function uploadARModel(blob, fmt) {
+  const token = tokenStore.get();
+  const res = await fetch(`${BASE}/ar/models?fmt=${fmt}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: blob,
+  });
+  if (!res.ok) throw new ApiError(res.status, (await res.json().catch(() => null))?.detail || 'Upload failed');
+  const { url } = await res.json();
+  return new URL(url, new URL(BASE, window.location.origin)).href; // works for same-origin and separate API hosts
+}

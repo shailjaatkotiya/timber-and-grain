@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from . import migrate
 from .database import Base, SessionLocal, engine
-from .routers import addresses, auth, cart, orders, products
+from .routers import addresses, ar, auth, cart, orders, products
 from .seed import seed
 
 
@@ -34,7 +34,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (auth.router, products.router, cart.router, addresses.router, orders.router):
+for r in (auth.router, products.router, cart.router, addresses.router, orders.router, ar.router):
     app.include_router(r)
 
 
@@ -47,7 +47,7 @@ def health():
 # With STATIC_DIR=frontend/dist the API and the website share one origin: no CORS, one service.
 # slim container images ship without a MIME table: make 3D models, WebP and JS modules explicit
 for _ext, _type in {".glb": "model/gltf-binary", ".gltf": "model/gltf+json", ".webp": "image/webp",
-                    ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml"}.items():
+                    ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".usdz": "model/vnd.usdz+zip"}.items():
     mimetypes.add_type(_type, _ext)
 
 _static = Path(settings.static_dir).resolve() if settings.static_dir else None
