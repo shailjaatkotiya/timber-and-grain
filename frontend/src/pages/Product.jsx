@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import Configurator, { ARIcon } from '../components/Configurator';
+import Configurator from '../components/Configurator';
 import ARViewer from '../components/ARViewer';
+import ARButton from '../components/ARButton';
 import { inr } from '../api';
 import { addToCart, dismissAdded } from '../store/cartSlice';
 import { fetchProduct } from '../store/catalogSlice';
@@ -34,8 +35,8 @@ export default function Product() {
   const { adding, error, lastAdded } = useSelector((s) => s.cart);
   const [qty, setQty] = useState(1);
   const [params, setParams] = useSearchParams();
-  const [arOpen, setArOpen] = useState(false);
-  const [arCamera, setArCamera] = useState(false);
+  const [arDialog, setArDialog] = useState(null); // null | 'qr' | 'camera'
+  const [arAutoPrepare, setArAutoPrepare] = useState(false);
   const [modelReady, setModelReady] = useState(false);
   const viewerRef = useRef(null);
 
@@ -52,22 +53,17 @@ export default function Product() {
     else dispatch(initSelection({ slug, defaults: product.default_config }));
   }, [dispatch, slug, product]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ?ar=1 → open the AR dialog as soon as the model is ready
+  // ?ar=1 (from the desktop QR code) → prepare AR right away so one tap opens it.
+  // ?ar=camera (Android phones without Google AR) → open the live camera view.
   useEffect(() => {
     const ar = params.get('ar');
-    if (modelReady && (ar === '1' || ar === 'camera')) {
-      setArCamera(ar === 'camera'); // Android fallback from Scene Viewer lands here
-      setArOpen(true);
-      const next = new URLSearchParams(params); next.delete('ar'); setParams(next, { replace: true });
-    }
+    if (!modelReady || !ar) return;
+    if (ar === 'camera') setArDialog('camera');
+    if (ar === '1') setArAutoPrepare(true);
+    const next = new URLSearchParams(params); next.delete('ar'); setParams(next, { replace: true });
   }, [modelReady]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setModelReady(false); }, [slug]);
 
-  const viewerApi = useMemo(() => ({
-    snapshot: () => viewerRef.current.snapshot(),
-    exportGLB: () => viewerRef.current.exportGLB(),
-    exportUSDZ: () => viewerRef.current.exportUSDZ(),
-  }), []);
 
   const optionIndex = useMemo(() => (product?.options ? indexOptions(product.options) : null), [product]);
 
@@ -97,7 +93,11 @@ export default function Product() {
     <div className="product-page">
       <div className="product-stage">
         <Configurator ref={viewerRef} product={product} config={selection} optionIndex={optionIndex}
-          onViewAR={() => { setArCamera(false); setArOpen(true); }} onReady={() => setModelReady(true)} />
+          onReady={() => setModelReady(true)}>
+          <ARButton product={product} config={selection} configLabel={configLabel} viewerRef={viewerRef}
+            modelReady={modelReady} shareUrl={shareUrl} autoPrepare={arAutoPrepare}
+            onDesktop={() => setArDialog('qr')} />
+        </Configurator>
       </div>
       <aside className="product-panel">
         <Link to={`/shop?category=${product.category}`} className="muted small">← {product.category === 'table' ? 'Tables' : 'Chairs'}</Link>
@@ -134,9 +134,6 @@ export default function Product() {
             {adding ? 'Adding…' : `Add to cart · ${inr(price * qty)}`}
           </button>
         </div>
-        <button type="button" className="btn-ghost block ar-btn" onClick={() => { setArCamera(false); setArOpen(true); }} disabled={!modelReady}>
-          <ARIcon /> View in AR, in your room
-        </button>
         <button type="button" className="btn-link small"
           onClick={() => dispatch(resetSelection({ slug, defaults: product.default_config }))}>Reset to default</button>
         {error && <p className="error">{error}</p>}
@@ -150,10 +147,9 @@ export default function Product() {
           <h3>About this piece</h3>
           <p>{product.description}</p>
         </div>
-        {arOpen && (
-          <ARViewer product={product} viewerApi={viewerApi} shareUrl={shareUrl} configLabel={configLabel}
-            config={selection} optionIndex={optionIndex} startInCamera={arCamera}
-            onClose={() => { setArOpen(false); setArCamera(false); }} />
+        {arDialog && (
+          <ARViewer mode={arDialog} product={product} shareUrl={shareUrl} configLabel={configLabel}
+            config={selection} optionIndex={optionIndex} onClose={() => setArDialog(null)} />
         )}
         <p className="help-line">
           Questions about this piece? Call <a href={telHref}>{STORE.phone}</a> or{' '}

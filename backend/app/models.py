@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import (
-    Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func,
+    Boolean, DateTime, ForeignKey, Integer, LargeBinary, Numeric, String, Text, UniqueConstraint, func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -140,3 +140,14 @@ class OrderItem(Base):
     preview_image: Mapped[str | None] = mapped_column(Text)
 
     order: Mapped[Order] = relationship(back_populates="items")
+
+
+class ArModel(Base):
+    """A configured model exported by the browser for native AR viewers (kept for a couple of hours).
+    Stored in Postgres rather than on disk so links survive instance restarts (Render free plan sleeps)."""
+    __tablename__ = "ar_models"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    fmt: Mapped[str] = mapped_column(String(8))
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)

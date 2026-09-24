@@ -99,20 +99,21 @@ Images are written to `frontend/public/images/products/<slug>.webp` (the path in
 3. Run `npm run render:images -- <slug>`.
 
 ### View in your room (AR)
-The product page has a **View in your room** button. AR always shows the **configured** piece at true size:
-the configured model is baked (scale, yaw and floor offset built into the geometry) and exported in the browser,
-then uploaded to `POST /api/ar/models` and served from a short-lived HTTPS URL (`/api/ar/models/<id>.usdz|glb`,
-expiring after 2 h). Native AR apps can't open in-memory `blob:` URLs.
+A single **View in your room** button sits on the 3D view. AR always shows the **configured** piece at true size:
+the model is baked (scale, yaw and floor offset built into the geometry), exported in the browser (USDZ on iOS, GLB on
+Android), uploaded to `POST /api/ar/models` and served from `/api/ar/models/<id>.usdz|glb` (stored in Postgres,
+expires after 2 h). On phones this runs **in the background** once the configuration settles, so one tap opens AR.
 
-| Device | What opens | Needs |
-|---|---|---|
-| iPhone / iPad, **any browser** | Apple **AR Quick Look** (floor tracking, real size) via a `rel="ar"` link to the USDZ | nothing. In Chrome/Firefox the file may open in Apple's viewer: tap **AR** at the top. Safari is smoothest |
-| Android, **any browser** (Chrome, Firefox, Samsung Internet, Edge) | Google **Scene Viewer** via an intent link to the GLB | Google Play Services for AR (most phones). Falls back to the live camera view |
-| **Any browser** (fallback) | **Live camera view**: rear camera plus the 3D model on top (rotate, pinch, move, save photo) | camera permission. The app asks explicitly and shows per-browser steps if it's blocked |
-| Desktop | QR code → the same product + configuration on the phone | – |
+| Device | What the tap does |
+|---|---|
+| iPhone / iPad, Safari | Apple **AR Quick Look** via `<a rel="ar"><img></a>` (floor tracking, real size) |
+| iPhone / iPad, Chrome / Firefox / Edge | navigates to the `.usdz`; these browsers hand it to AR Quick Look (they ignore `rel="ar"`, which only Safari handles) |
+| Android, any browser | Google **Scene Viewer** intent. Phones without Google AR fall back to the live camera view (`?ar=camera`) |
+| Desktop | QR code → the same product and configuration on the phone, AR prepared automatically |
 
-Quick Look and Scene Viewer ask for the camera themselves (a system prompt, once). The live camera view uses the browser's
-permission prompt and **requires HTTPS**, so test on the deployed site, not `localhost`.
+If the customer taps before the file is ready, the button shows *Preparing 3D…* and then *Tap to open in your room*,
+because AR viewers only open from a direct tap. Quick Look and Scene Viewer ask for the camera themselves (a system
+prompt). The camera fallback asks through the browser and shows per-browser steps if the camera is blocked.
 
 ### Configuration → cart → order
 * The client sends `{product_id, quantity, configuration, preview_image}`. It **never sends a price**.

@@ -5,7 +5,7 @@ import { FurnitureViewer } from '../three/FurnitureViewer';
  * Interactive 3D configurator: loads the product's GLB and applies the selected options.
  * Exposes snapshot() to the parent via ref (used for the cart preview image).
  */
-const Configurator = forwardRef(function Configurator({ product, config, optionIndex, onViewAR, onReady }, ref) {
+const Configurator = forwardRef(function Configurator({ product, config, optionIndex, onReady, children }, ref) {
   const host = useRef(null);
   const viewer = useRef(null);
   const [status, setStatus] = useState({ loading: true, error: null });
@@ -45,11 +45,7 @@ const Configurator = forwardRef(function Configurator({ product, config, optionI
       )}
       {status.error && <div className="configurator-loading"><span className="error">{status.error}</span></div>}
       <div className="configurator-hint">Drag to rotate · Scroll to zoom</div>
-      {onViewAR && !status.loading && !status.error && (
-        <button type="button" className="ar-fab" onClick={onViewAR}>
-          <ARIcon /> View in your room
-        </button>
-      )}
+      {!status.loading && !status.error && children}
       <button type="button" className="btn-ghost small reset-view" onClick={() => viewer.current?.model && viewer.current.frameModel()}>
         Reset view
       </button>

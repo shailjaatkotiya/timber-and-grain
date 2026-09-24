@@ -1,25 +1,25 @@
 """Short-lived hosting for configured AR models.
 
-AR viewers can't reliably open in-memory blob: URLs:
-  * iOS AR Quick Look in Chrome / Firefox / Edge ignores blob USDZ files,
-  * Google Scene Viewer (Android) downloads the model itself, so it needs a public HTTPS URL.
-The browser exports the customer's configured model (GLB for Android, USDZ for iOS), uploads it
-here, and gets back a URL that native AR apps can open. Files expire after AR_TTL_SECONDS.
+Native AR viewers need a real HTTPS URL, not an in-memory blob:
+  * iPhone Safari: AR Quick Look via <a rel="ar"> to the USDZ.
+  * iPhone Chrome / Firefox / Edge: the browser itself hands a navigated-to .usdz to Quick Look.
+  * Android (any browser): Google Scene Viewer downloads the GLB itself.
+The browser exports the customer's configured model, uploads it here and opens the returned URL.
 """
-import time
 import uuid
-from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from sqlalchemy import delete
+from sqlalchemy.orm import Session
 
-from ..models import User
+from ..database import get_db
+from ..models import ArModel, User
 from ..security import current_user
 
 router = APIRouter(prefix="/api/ar", tags=["ar"])
 
-AR_DIR = Path("/tmp/ar-models")
-AR_TTL_SECONDS = 2 * 60 * 60
+TTL = timedelta(hours=2)
 MAX_BYTES = 25 * 1024 * 1024
 FORMATS = {
     # ext: (content type, magic bytes)
@@ -28,45 +28,34 @@ FORMATS = {
 }
 
 
-def _cleanup() -> None:
-    cutoff = time.time() - AR_TTL_SECONDS
-    for f in AR_DIR.glob("*"):
-        try:
-            if f.stat().st_mtime < cutoff:
-                f.unlink()
-        except OSError:
-            pass
-
-
 @router.post("/models", status_code=201)
-async def upload_model(request: Request, fmt: str, user: User = Depends(current_user)):
+async def upload_model(request: Request, fmt: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
     if fmt not in FORMATS:
         raise HTTPException(422, "fmt must be glb or usdz")
-    declared = int(request.headers.get("content-length") or 0)
-    if declared > MAX_BYTES:
+    if int(request.headers.get("content-length") or 0) > MAX_BYTES:
         raise HTTPException(413, "Model too large")
     data = await request.body()
-    content_type, magic = FORMATS[fmt]
     if len(data) > MAX_BYTES:
         raise HTTPException(413, "Model too large")
-    if not data.startswith(magic):
+    if not data.startswith(FORMATS[fmt][1]):
         raise HTTPException(422, f"Not a valid {fmt.upper()} file")
-    AR_DIR.mkdir(parents=True, exist_ok=True)
-    _cleanup()
-    name = f"{uuid.uuid4().hex}.{fmt}"
-    (AR_DIR / name).write_bytes(data)
-    return {"url": f"/api/ar/models/{name}", "expires_in": AR_TTL_SECONDS}
+    db.execute(delete(ArModel).where(ArModel.created_at < datetime.now(timezone.utc) - TTL))
+    model = ArModel(id=uuid.uuid4().hex, fmt=fmt, data=data)
+    db.add(model)
+    db.commit()
+    return {"url": f"/api/ar/models/{model.id}.{fmt}", "expires_in": int(TTL.total_seconds())}
 
 
 @router.get("/models/{name}")
-def get_model(name: str):
+def get_model(name: str, db: Session = Depends(get_db)):
     stem, _, ext = name.partition(".")
-    if ext not in FORMATS or len(stem) != 32 or not all(c in "0123456789abcdef" for c in stem):
+    if ext not in FORMATS or len(stem) != 32:
         raise HTTPException(404, "Not found")
-    path = AR_DIR / name
-    if not path.is_file() or path.stat().st_mtime < time.time() - AR_TTL_SECONDS:
-        raise HTTPException(404, "This AR link has expired. Please open AR again from the product page.")
-    return FileResponse(path, media_type=FORMATS[ext][0], headers={
+    model = db.get(ArModel, stem)
+    if not model or model.fmt != ext or model.created_at < datetime.now(timezone.utc) - TTL:
+        raise HTTPException(404, "This AR link has expired. Open the product page and tap View in your room again.")
+    return Response(model.data, media_type=FORMATS[ext][0], headers={
+        "Content-Disposition": f'inline; filename="timber-and-grain.{ext}"',
         "Cache-Control": "private, max-age=3600",
         "Access-Control-Allow-Origin": "*",   # Scene Viewer / Quick Look fetch it directly
     })
